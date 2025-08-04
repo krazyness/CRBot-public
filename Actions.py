@@ -20,36 +20,25 @@ class Actions:
         self._connect_device()
 
         # BlueStacks default resolution (you may need to adjust based on your setup)
-        self.device_width = 1280
-        self.device_height = 720
+        self.device_width = 1080
+        self.device_height = 1920
         
         # Define game area coordinates in device space (not screen space)
         # These need to be adjusted based on your BlueStacks resolution and Clash Royale layout
         self.TOP_LEFT_X = 0
-        self.TOP_LEFT_Y = 100
-        self.BOTTOM_RIGHT_X = 1280
-        self.BOTTOM_RIGHT_Y = 620
+        self.TOP_LEFT_Y = 0
+        self.BOTTOM_RIGHT_X = 1080
+        self.BOTTOM_RIGHT_Y = 1920
         self.FIELD_AREA = (self.TOP_LEFT_X, self.TOP_LEFT_Y, self.BOTTOM_RIGHT_X, self.BOTTOM_RIGHT_Y)
         
         self.WIDTH = self.BOTTOM_RIGHT_X - self.TOP_LEFT_X
         self.HEIGHT = self.BOTTOM_RIGHT_Y - self.TOP_LEFT_Y
         
         # Card bar coordinates in device space
-        self.CARD_BAR_X = 200
-        self.CARD_BAR_Y = 620
-        self.CARD_BAR_WIDTH = 880
-        self.CARD_BAR_HEIGHT = 100
-
-        # Card position to key mapping
-        self.card_keys = {
-            0: '1',  # Changed from 1 to 0
-            1: '2',  # Changed from 2 to 1
-            2: '3',  # Changed from 3 to 2
-            3: '4'   # Changed from 4 to 3
-        }
-        
-        # Card name to position mapping (will be updated during detection)
-        self.current_card_positions = {}
+        self.CARD_BAR_X = 237
+        self.CARD_BAR_Y = 1590
+        self.CARD_BAR_WIDTH = 820
+        self.CARD_BAR_HEIGHT = 250
 
     def _connect_device(self):
         """Connect to the BlueStacks ADB device"""
@@ -57,6 +46,7 @@ class Actions:
             devices = self.adb_client.devices()
             if not devices:
                 print("No ADB devices found. Make sure BlueStacks is running and ADB is enabled.")
+                print("Run setup_adb.py first to configure ADB connection.")
                 return False
             
             # Usually BlueStacks appears as the first device, but you might need to select the right one
@@ -65,6 +55,7 @@ class Actions:
             return True
         except Exception as e:
             print(f"Failed to connect to ADB device: {e}")
+            print("Run setup_adb.py first to configure ADB connection.")
             return False
 
     def _take_screenshot(self):
@@ -105,31 +96,6 @@ class Actions:
             return True
         except Exception as e:
             print(f"Failed to swipe: {e}")
-            return False
-
-    def _send_key(self, key):
-        """Send a key press using ADB"""
-        if not self.device:
-            print("No device connected")
-            return False
-        
-        try:
-            # Map card keys to Android key codes
-            key_codes = {
-                '1': '8',   # KEYCODE_1
-                '2': '9',   # KEYCODE_2
-                '3': '10',  # KEYCODE_3
-                '4': '11',  # KEYCODE_4
-            }
-            
-            if key in key_codes:
-                self.device.shell(f"input keyevent {key_codes[key]}")
-                return True
-            else:
-                print(f"Unknown key: {key}")
-                return False
-        except Exception as e:
-            print(f"Failed to send key {key}: {e}")
             return False
 
     def capture_area(self, save_path):
@@ -220,20 +186,6 @@ class Actions:
                     
         return min(count, 10)  # Cap at 10 elixir
 
-    def update_card_positions(self, detections):
-        """
-        Update card positions based on detection results
-        detections: list of dictionaries with 'class' and 'x' position
-        """
-        # Sort detections by x position (left to right)
-        sorted_cards = sorted(detections, key=lambda x: x['x'])
-        
-        # Map cards to positions 0-3 instead of 1-4
-        self.current_card_positions = {
-            card['class']: idx  # Removed +1 
-            for idx, card in enumerate(sorted_cards)
-        }
-
     def _find_template(self, template_path, confidence=0.8, region=None):
         """Find template image in screenshot using OpenCV template matching"""
         screenshot = self._take_screenshot()
@@ -273,15 +225,20 @@ class Actions:
     def card_play(self, x, y, card_index):
         """Play a card using ADB commands"""
         print(f"Playing card {card_index} at position ({x}, {y})")
-        if card_index in self.card_keys:
-            key = self.card_keys[card_index]
-            print(f"Sending key: {key}")
-            self._send_key(key)
+        if card_index in range(4):  # Valid card indices are 0-3
+            # Calculate card position in the deck
+            card_width = self.CARD_BAR_WIDTH // 4
+            card_center_x = self.CARD_BAR_X + (card_index * card_width) + (card_width // 2)
+            card_center_y = self.CARD_BAR_Y + (self.CARD_BAR_HEIGHT // 2)
+            
+            print(f"Clicking on card {card_index} at deck position ({card_center_x}, {card_center_y})")
+            self._click(card_center_x, card_center_y)
             time.sleep(0.2)
-            print(f"Clicking at: ({x}, {y})")
+            
+            print(f"Placing card at battlefield position ({x}, {y})")
             self._click(x, y)
         else:
-            print(f"Invalid card index: {card_index}")
+            print(f"Invalid card index: {card_index} (must be 0-3)")
 
     def click_battle_start(self):
         """Find and click the battle start button using ADB and template matching"""
@@ -289,7 +246,7 @@ class Actions:
         confidences = [0.8, 0.7, 0.6, 0.5]  # Try multiple confidence levels
 
         # Define the region for the battle button in device coordinates
-        battle_button_region = (400, 600, 480, 100)  # Adjust based on your device resolution
+        battle_button_region = (300, 1350, 480, 300)  # Adjust based on your device resolution
 
         while True:
             for confidence in confidences:
@@ -317,7 +274,7 @@ class Actions:
             winner_region = (400, 100, 480, 400)  # Adjust based on your device resolution
 
             for confidence in confidences:
-                print(f"\nTrying detection with confidence: {confidence}")
+                # print(f"\nTrying detection with confidence: {confidence}")
                 
                 result = self._find_template(winner_img, confidence, winner_region)
                 if result:
@@ -341,10 +298,11 @@ class Actions:
     def detect_match_over(self):
         """Detect match over using ADB and template matching"""
         matchover_img = os.path.join(self.images_folder, "matchover.png")
+        print(matchover_img)
         confidences = [0.8, 0.6, 0.4]
         
         # Define the region where the matchover image appears in device coordinates
-        region = (200, 200, 880, 100)  # Adjust based on your device resolution
+        region = (100, 570, 900, 200)  # Adjust based on your device resolution
         
         for confidence in confidences:
             result = self._find_template(matchover_img, confidence, region)

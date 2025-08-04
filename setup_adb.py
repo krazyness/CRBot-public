@@ -8,22 +8,64 @@ This script helps you set up ADB connection with BlueStacks for the CRBot projec
 import subprocess
 import os
 import time
+import shutil
 from ppadb.client import Client as AdbClient
 
-def check_adb_installed():
-    """Check if ADB is installed and accessible"""
+def find_adb_executable():
+    """Find adb.exe in common locations"""
+    # Common locations for Android SDK platform-tools
+    common_paths = [
+        # Check if adb is in PATH
+        shutil.which("adb"),
+        # BlueStacks sometimes includes its own ADB
+        "C:/Program Files/BlueStacks_nxt/HD-Adb.exe",
+        "C:/Program Files/BlueStacks/HD-Adb.exe",
+        "C:/Program Files (x86)/BlueStacks/HD-Adb.exe",
+    ]
+    
+    for path in common_paths:
+        if path and os.path.exists(path):
+            print(f"Found ADB at: {path}")
+            return path
+    
+    # If not found, try to use adb from PATH
     try:
         result = subprocess.run(['adb', 'version'], capture_output=True, text=True)
         if result.returncode == 0:
+            print("Using ADB from PATH")
+            return "adb"
+    except FileNotFoundError:
+        pass
+    
+    return None
+
+def check_adb_installed():
+    """Check if ADB is installed and accessible"""
+    adb_path = find_adb_executable()
+    
+    if not adb_path:
+        print("✗ ADB is not installed or not found")
+        print("\nPlease install ADB:")
+        print("1. Download Android SDK Platform Tools from:")
+        print("   https://developer.android.com/studio/releases/platform-tools")
+        print("2. Extract to a folder (e.g., C:/Android/Sdk/platform-tools/)")
+        print("3. Add the platform-tools directory to your PATH, or")
+        print("4. Place adb.exe in your project directory")
+        return False, None
+    
+    try:
+        result = subprocess.run([adb_path, 'version'], capture_output=True, text=True)
+        if result.returncode == 0:
             print("✓ ADB is installed and accessible")
-            print(f"ADB version: {result.stdout.split()[4]}")
-            return True
+            version_line = result.stdout.split('\n')[0]
+            print(f"ADB version: {version_line}")
+            return True, adb_path
         else:
             print("✗ ADB command failed")
-            return False
-    except FileNotFoundError:
-        print("✗ ADB is not installed or not in PATH")
-        return False
+            return False, adb_path
+    except Exception as e:
+        print(f"✗ Error running ADB: {e}")
+        return False, adb_path
 
 def check_adb_server():
     """Check if ADB server is running"""
@@ -36,17 +78,29 @@ def check_adb_server():
         print(f"✗ ADB server connection failed: {e}")
         return False, []
 
-def start_adb_server():
-    """Start ADB server"""
+def start_adb_server(adb_path="adb"):
+    """Start ADB server using specified ADB executable"""
     try:
-        subprocess.run(['adb', 'start-server'], check=True)
-        print("✓ ADB server started")
-        return True
-    except subprocess.CalledProcessError as e:
-        print(f"✗ Failed to start ADB server: {e}")
+        print("Starting ADB server...")
+        result = subprocess.run([adb_path, 'start-server'], 
+                              capture_output=True, text=True, timeout=30)
+        
+        if result.returncode == 0:
+            print("✓ ADB server started successfully")
+            time.sleep(2)  # Give server time to start
+            return True
+        else:
+            print(f"✗ Failed to start ADB server: {result.stderr}")
+            return False
+            
+    except subprocess.TimeoutExpired:
+        print("✗ ADB server start timed out")
+        return False
+    except Exception as e:
+        print(f"✗ Error starting ADB server: {e}")
         return False
 
-def connect_bluestacks():
+def connect_bluestacks(adb_path="adb"):
     """Connect to BlueStacks via ADB"""
     print("\nConnecting to BlueStacks...")
     
@@ -55,7 +109,7 @@ def connect_bluestacks():
     
     for port in ports:
         try:
-            result = subprocess.run(['adb', 'connect', f'127.0.0.1:{port}'], 
+            result = subprocess.run([adb_path, 'connect', f'127.0.0.1:{port}'], 
                                   capture_output=True, text=True)
             if 'connected' in result.stdout.lower():
                 print(f"✓ Connected to BlueStacks on port {port}")
@@ -64,6 +118,11 @@ def connect_bluestacks():
             print(f"Failed to connect on port {port}: {e}")
     
     print("✗ Could not connect to BlueStacks")
+    print("\nTroubleshooting:")
+    print("1. Make sure BlueStacks is running")
+    print("2. Enable ADB in BlueStacks settings:")
+    print("   Settings > Advanced > Android Debug Bridge > Enable")
+    print("3. Restart BlueStacks after enabling ADB")
     return False
 
 def list_devices():
@@ -104,7 +163,7 @@ def test_screenshot():
         if actions.device:
             screenshot = actions._take_screenshot()
             if screenshot:
-                test_path = "test_screenshot.png"
+                test_path = "screenshots/test_screenshot.png"
                 screenshot.save(test_path)
                 print(f"✓ Screenshot saved to {test_path}")
                 return True
@@ -118,23 +177,46 @@ def test_screenshot():
         print(f"✗ Screenshot test failed: {e}")
         return False
 
+def ensure_adb_ready():
+    """Ensure ADB is ready for use. Returns True if ready, False otherwise."""
+    # Check ADB installation and get path
+    adb_available, adb_path = check_adb_installed()
+    if not adb_available:
+        return False
+    
+    # Check/start ADB server
+    server_running, devices = check_adb_server()
+    if not server_running:
+        print("Starting ADB server...")
+        if not start_adb_server(adb_path):
+            return False
+        time.sleep(2)
+        server_running, devices = check_adb_server()
+    
+    # Connect to BlueStacks if no devices found
+    if not devices:
+        print("No devices connected. Attempting to connect to BlueStacks...")
+        if connect_bluestacks(adb_path):
+            time.sleep(2)
+            server_running, devices = check_adb_server()
+            return len(devices) > 0
+    
+    return len(devices) > 0
+
 def main():
     print("CRBot ADB Setup Script")
     print("=" * 30)
     
-    # Check ADB installation
-    if not check_adb_installed():
-        print("\nPlease install ADB:")
-        print("1. Download Android SDK Platform Tools")
-        print("2. Add the platform-tools directory to your PATH")
-        print("3. Run this script again")
+    # Check ADB installation and get path
+    adb_available, adb_path = check_adb_installed()
+    if not adb_available:
         return
     
     # Check/start ADB server
     server_running, devices = check_adb_server()
     if not server_running:
         print("Starting ADB server...")
-        if not start_adb_server():
+        if not start_adb_server(adb_path):
             return
         time.sleep(2)
         server_running, devices = check_adb_server()
@@ -142,7 +224,7 @@ def main():
     # Connect to BlueStacks if no devices found
     if not devices:
         print("\nNo devices connected. Attempting to connect to BlueStacks...")
-        if connect_bluestacks():
+        if connect_bluestacks(adb_path):
             time.sleep(2)
             server_running, devices = check_adb_server()
     

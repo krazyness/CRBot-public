@@ -72,10 +72,21 @@ A Python-based Clash Royale AI bot that learns and improves through gameplay. Th
 * [Roboflow Account](https://www.roboflow.com/)
 * [BlueStacks](https://www.bluestacks.com/download.html) with ADB enabled
 * [Python 3.12](https://www.python.org/downloads/windows/)
-* [Android SDK Platform Tools](https://developer.android.com/studio/releases/platform-tools) (for ADB)
-* Required Python packages:
+* inference_sdk
   ```
-  pip install ppadb opencv-python pillow numpy inference-sdk torch
+  pip install inference-sdk
+  ```
+* PyTorch
+  ```
+  pip install torch
+  ```
+* PyAutoGUI
+  ```
+  pip install PyAutoGUI
+  ```
+* NumPy
+  ```
+  pip install numpy
   ```
   
 ### Installation
@@ -112,7 +123,21 @@ A Python-based Clash Royale AI bot that learns and improves through gameplay. Th
    WORKSPACE_TROOP_DETECTION=workspace-your-troop-name
    WORKSPACE_CARD_DETECTION=workspace-your-card-name
    ```
-6. Open Docker, and open the terminal on the bottom right, and install inference-cli (don't worry the terminal isn't stuck, it takes a long time)
+
+6. **Set up ADB connection with BlueStacks:**
+   ```bash
+   python setup_adb.py
+   ```
+   This script will:
+   - Find your ADB installation automatically
+   - Start the ADB server
+   - Connect to BlueStacks
+   - Test the connection
+   
+   **Important**: Make sure BlueStacks is running and ADB is enabled in BlueStacks settings:
+   `Settings > Advanced > Android Debug Bridge > Enable`
+
+7. Open Docker, and open the terminal on the bottom right, and install inference-cli (don't worry the terminal isn't stuck, it takes a long time)
    ```js
    pip install inference-cli
    ```
