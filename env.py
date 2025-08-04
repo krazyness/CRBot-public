@@ -1,7 +1,6 @@
 import numpy as np
 import time
 import os
-import pyautogui
 import threading
 from dotenv import load_dotenv
 from Actions import Actions
@@ -107,11 +106,10 @@ class ClashRoyaleEnv:
         self.current_cards = self.detect_cards_in_hand()
         print("\nCurrent cards in hand:", self.current_cards)
 
-        # If all cards are "Unknown", click at (1611, 831) and return no-op
+        # If all cards are "Unknown", click at center and return no-op
         if all(card == "Unknown" for card in self.current_cards):
-            print("All cards are Unknown, clicking at (1611, 831) and skipping move.")
-            pyautogui.moveTo(1611, 831, duration=0.2)
-            pyautogui.click()
+            print("All cards are Unknown, clicking at center and skipping move.")
+            self.actions._click(640, 400)  # Click at center of screen in device coordinates
             # Return current state, zero reward, not done
             next_state = self._get_state()
             return next_state, 0, False

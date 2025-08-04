@@ -70,23 +70,12 @@ A Python-based Clash Royale AI bot that learns and improves through gameplay. Th
 * VSCode (unless you're more familiar with other code editors)
 * [Docker](https://www.docker.com/)
 * [Roboflow Account](https://www.roboflow.com/)
-* [BlueStacks](https://www.bluestacks.com/download.html)
+* [BlueStacks](https://www.bluestacks.com/download.html) with ADB enabled
 * [Python 3.12](https://www.python.org/downloads/windows/)
-* inference_sdk
+* [Android SDK Platform Tools](https://developer.android.com/studio/releases/platform-tools) (for ADB)
+* Required Python packages:
   ```
-  pip install inference-sdk
-  ```
-* PyTorch
-  ```
-  pip install torch
-  ```
-* PyAutoGUI
-  ```
-  pip install PyAutoGUI
-  ```
-* NumPy
-  ```
-  pip install numpy
+  pip install ppadb opencv-python pillow numpy inference-sdk torch
   ```
   
 ### Installation
