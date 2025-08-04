@@ -62,8 +62,7 @@ class ClashRoyaleEnv:
         )
 
     def reset(self):
-        # self.actions.click_battle_start()
-        # Instead, just wait for the new game to load after clicking "Play Again"
+        self.actions.click_battle_start()
         time.sleep(3)
         self.game_over_flag = None
         self._endgame_thread_stop.clear()

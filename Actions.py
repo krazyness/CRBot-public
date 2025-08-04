@@ -288,12 +288,17 @@ class Actions:
                     print(f"Game result: {result_type}")
                     time.sleep(3)
                     
-                    # Click the "Play Again" button at device coordinates
-                    play_again_x, play_again_y = 640, 650  # Adjust based on your device resolution
-                    print(f"Clicking Play Again at ({play_again_x}, {play_again_y})")
-                    self._click(play_again_x, play_again_y)
+                    # # Click the "Play Again" button at device coordinates
+                    # play_again_x, play_again_y = 640, 650  # Adjust based on your device resolution
+                    # print(f"Clicking Play Again at ({play_again_x}, {play_again_y})")
+                    # self._click(play_again_x, play_again_y)
+
+                    # Click the "OK" button to close the result screen
+                    ok_x, ok_y = 540, 1700
+                    print(f"Clicking OK")
+                    self._click(ok_x, ok_y)
+
                     return result_type
-                    
         except Exception as e:
             print(f"Error in game end detection: {str(e)}")
         return None
