@@ -1,5 +1,5 @@
 import os
-from src.env import ClashRoyaleEnv
+from env import ClashRoyaleEnv
 import time
 
 def test_card_detection():
