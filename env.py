@@ -17,42 +17,35 @@ class ClashRoyaleEnv:
         self.rf_model = self.setup_roboflow()
         self.card_model = self.setup_card_roboflow()
         self.state_size = 1 + 2 * (MAX_ALLIES + MAX_ENEMIES)
-
         self.num_cards = 4
         self.grid_width = 18
         self.grid_height = 28
-
         self.screenshot_path = os.path.join(os.path.dirname(__file__), 'screenshots', "current.png")
         self.available_actions = self.get_available_actions()
         self.action_size = len(self.available_actions)
         self.current_cards = []
-
         self.game_over_flag = None
         self._endgame_thread = None
         self._endgame_thread_stop = threading.Event()
-
         self.prev_elixir = None
         self.prev_enemy_presence = None
-
         self.prev_enemy_princess_towers = None
-
         self.match_over_detected = False
+        self.last_predictions: list = []
 
     def setup_roboflow(self):
         return InferenceHTTPClient(
             api_url="http://localhost:9001",
-            api_key="########"
+            api_key="key"
         )
 
     def setup_card_roboflow(self):
         return InferenceHTTPClient(
             api_url="http://localhost:9001",
-            api_key="########"
+            api_key="key"
         )
 
     def reset(self):
-        # self.actions.click_battle_start()
-        # Instead, just wait for the new game to load after clicking "Play Again"
         time.sleep(3)
         self.game_over_flag = None
         self._endgame_thread_stop.clear()
@@ -70,14 +63,12 @@ class ClashRoyaleEnv:
             self._endgame_thread.join()
 
     def step(self, action_index):
-        # Check for match over
         if not self.match_over_detected and hasattr(self.actions, "detect_match_over") and self.actions.detect_match_over():
             print("Match over detected (matchover.png), forcing no-op until next game.")
             self.match_over_detected = True
 
-        # If match over, only allow no-op action (last action in list)
         if self.match_over_detected:
-            action_index = len(self.available_actions) - 1  # No-op action
+            action_index = len(self.available_actions) - 1
 
         if self.game_over_flag:
             done = True
@@ -89,18 +80,16 @@ class ClashRoyaleEnv:
             elif result == "defeat":
                 reward -= 100
                 print("Defeat detected - ending episode")
-            self.match_over_detected = False  # Reset for next episode
+            self.match_over_detected = False
             return self._get_state(), reward, done
 
         self.current_cards = self.detect_cards_in_hand()
         print("\nCurrent cards in hand:", self.current_cards)
 
-        # If all cards are "Unknown", click at (1611, 831) and return no-op
         if all(card == "Unknown" for card in self.current_cards):
             print("All cards are Unknown, clicking at (1611, 831) and skipping move.")
             pyautogui.moveTo(1611, 831, duration=0.2)
             pyautogui.click()
-            # Return current state, zero reward, not done
             next_state = self._get_state()
             return next_state, 0, False
 
@@ -113,12 +102,12 @@ class ClashRoyaleEnv:
         if card_index != -1 and card_index < len(self.current_cards):
             card_name = self.current_cards[card_index]
             print(f"Attempting to play {card_name}")
-            x = int(x_frac * self.actions.WIDTH) + self.actions.TOP_LEFT_X
-            y = int(y_frac * self.actions.HEIGHT) + self.actions.TOP_LEFT_Y
+            target_x_frac, target_y_frac = self._compute_placement(card_name)
+            x = int(target_x_frac * self.actions.WIDTH) + self.actions.TOP_LEFT_X
+            y = int(target_y_frac * self.actions.HEIGHT) + self.actions.TOP_LEFT_Y
             self.actions.card_play(x, y, card_index)
-            time.sleep(1)  # You can reduce this if needed
+            time.sleep(1)
 
-            # --- Spell penalty logic ---
             if card_name in SPELL_CARDS:
                 state = self._get_state()
                 enemy_positions = []
@@ -132,9 +121,8 @@ class ClashRoyaleEnv:
                 radius = 100
                 found_enemy = any((abs(ex - x) ** 2 + abs(ey - y) ** 2) ** 0.5 < radius for ex, ey in enemy_positions)
                 if not found_enemy:
-                    spell_penalty = -5  # Penalize for wasting spell
+                    spell_penalty = -5
 
-        # --- Princess tower reward logic ---
         current_enemy_princess_towers = self._count_enemy_princess_towers()
         princess_tower_reward = 0
         if self.prev_enemy_princess_towers is not None:
@@ -151,14 +139,13 @@ class ClashRoyaleEnv:
         self.actions.capture_area(self.screenshot_path)
         elixir = self.actions.count_elixir()
         results = self.rf_model.run_workflow(
-            workspace_name="workspace-mck69",
+            workspace_name="name",
             workflow_id="detect-count-and-visualize",
             images={"image": self.screenshot_path}
         )
 
         print("RAW results:", results)
 
-        # Handle new structure: dict with "predictions" key
         predictions = []
         if isinstance(results, dict) and "predictions" in results:
             predictions = results["predictions"]
@@ -171,12 +158,13 @@ class ClashRoyaleEnv:
             print("WARNING: No predictions found in results")
             return None
 
-        # After getting 'predictions' from results:
         if isinstance(predictions, dict) and "predictions" in predictions:
             predictions = predictions["predictions"]
 
         print("RAW predictions:", predictions)
         print("Detected classes:", [repr(p.get("class", "")) for p in predictions if isinstance(p, dict)])
+
+        self.last_predictions = predictions
 
         TOWER_CLASSES = {
             "ally king tower",
@@ -213,11 +201,9 @@ class ClashRoyaleEnv:
         print("Allies:", allies)
         print("Enemies:", enemies)
 
-        # Normalize positions
         def normalize(units):
             return [(x / self.actions.WIDTH, y / self.actions.HEIGHT) for x, y in units]
 
-        # Pad or truncate to fixed length
         def pad_units(units, max_units):
             units = normalize(units)
             if len(units) < max_units:
@@ -227,7 +213,6 @@ class ClashRoyaleEnv:
         ally_positions = pad_units(allies, MAX_ALLIES)
         enemy_positions = pad_units(enemies, MAX_ENEMIES)
 
-        # Flatten positions
         ally_flat = [coord for pos in ally_positions for coord in pos]
         enemy_flat = [coord for pos in enemy_positions for coord in pos]
 
@@ -237,42 +222,30 @@ class ClashRoyaleEnv:
     def _compute_reward(self, state):
         if state is None:
             return 0
-
         elixir = state[0] * 10
-
-        # Sum all enemy positions (not just the first)
-        enemy_positions = state[1 + 2 * MAX_ALLIES:]  # All enemy x1, y1, x2, y2, ...
+        enemy_positions = state[1 + 2 * MAX_ALLIES:]
         enemy_presence = sum(enemy_positions)
-
         reward = -enemy_presence
-
-        # Elixir efficiency: reward for spending elixir if it reduces enemy presence
         if self.prev_elixir is not None and self.prev_enemy_presence is not None:
             elixir_spent = self.prev_elixir - elixir
             enemy_reduced = self.prev_enemy_presence - enemy_presence
             if elixir_spent > 0 and enemy_reduced > 0:
-                reward += 2 * min(elixir_spent, enemy_reduced)  # tune this factor
-
+                reward += 2 * min(elixir_spent, enemy_reduced)
         self.prev_elixir = elixir
         self.prev_enemy_presence = enemy_presence
-
         return reward
 
     def detect_cards_in_hand(self):
         try:
             card_paths = self.actions.capture_individual_cards()
             print("\nTesting individual card predictions:")
-
             cards = []
             for card_path in card_paths:
                 results = self.card_model.run_workflow(
-                    workspace_name="clash-royale-841nt",
+                    workspace_name="name",
                     workflow_id="custom-workflow",
                     images={"image": card_path}
                 )
-                # print("Card detection raw results:", results)  # Debug print
-
-                # Fix: parse nested structure
                 predictions = []
                 if isinstance(results, list) and results:
                     preds_dict = results[0].get("predictions", {})
@@ -291,14 +264,13 @@ class ClashRoyaleEnv:
             return []
 
     def get_available_actions(self):
-        """Generate all possible actions"""
         actions = [
             [card, x / (self.grid_width - 1), y / (self.grid_height - 1)]
             for card in range(self.num_cards)
             for x in range(self.grid_width)
             for y in range(self.grid_height)
         ]
-        actions.append([-1, 0, 0])  # No-op action
+        actions.append([-1, 0, 0])
         return actions
 
     def _endgame_watcher(self):
@@ -307,13 +279,12 @@ class ClashRoyaleEnv:
             if result:
                 self.game_over_flag = result
                 break
-            # Sleep a bit to avoid hammering the CPU
             time.sleep(0.5)
 
     def _count_enemy_princess_towers(self):
         self.actions.capture_area(self.screenshot_path)
         results = self.rf_model.run_workflow(
-            workspace_name="workspace-mck69",
+            workspace_name="name",
             workflow_id="detect-count-and-visualize",
             images={"image": self.screenshot_path}
         )
@@ -325,3 +296,50 @@ class ClashRoyaleEnv:
             if isinstance(first, dict) and "predictions" in first:
                 predictions = first["predictions"]
         return sum(1 for p in predictions if isinstance(p, dict) and p.get("class") == "enemy princess tower")
+
+    def _get_enemy_units(self):
+        enemy_units = []
+        tower_classes = {
+            "ally king tower",
+            "ally princess tower",
+            "enemy king tower",
+            "enemy princess tower",
+        }
+        for p in self.last_predictions:
+            if not isinstance(p, dict):
+                continue
+            cls = p.get("class")
+            if not cls:
+                continue
+            cls_norm = cls.strip().lower()
+            if cls_norm in tower_classes:
+                continue
+            if not cls_norm.startswith("enemy"):
+                continue
+            x = p.get("x")
+            y = p.get("y")
+            if x is None or y is None:
+                continue
+            enemy_units.append({"class": cls, "x": x, "y": y})
+        return enemy_units
+
+    def _compute_placement(self, card_name):
+        enemy_units = self._get_enemy_units()
+        def to_frac(x, y):
+            return (x / self.actions.WIDTH, y / self.actions.HEIGHT)
+        if card_name in SPELL_CARDS:
+            if enemy_units:
+                cx = sum(unit["x"] for unit in enemy_units) / len(enemy_units)
+                cy = sum(unit["y"] for unit in enemy_units) / len(enemy_units)
+                x_frac, y_frac = to_frac(cx, cy)
+                x_frac = max(0.0, min(1.0, x_frac))
+                y_frac = max(0.0, min(1.0, y_frac))
+                return x_frac, y_frac
+            return 0.5, 0.5
+        if enemy_units:
+            nearest = max(enemy_units, key=lambda u: u["y"])
+            x_frac, _ = to_frac(nearest["x"], nearest["y"])
+            y_frac = 0.75
+            x_frac = max(0.0, min(1.0, x_frac))
+            return x_frac, y_frac
+        return 0.5, 0.8
