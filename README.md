@@ -97,29 +97,31 @@ A Python-based Clash Royale AI bot that learns and improves through gameplay. Th
    ```sh
    git clone https://github.com/krazyness/CRBot-public.git
    ```
-3. Inside of env.py, set both api_key variables to your Roboflow private API key (I had two different methods that did the same thing because I had two different workspaces)
-   ```js
-   def setup_roboflow(self):
-        return InferenceHTTPClient(
-            api_url="http://localhost:9001",
-            api_key="ENTER-KEY-HERE"
-        )
-
-    def setup_card_roboflow(self):
-        return InferenceHTTPClient(
-            api_url="http://localhost:9001",
-            api_key="ENTER-SAME-KEY-HERE"
-        )
+3. Set up your environment variables:
+   - Copy `.env.example` to `.env`
+   - Edit `.env` and replace `your_roboflow_api_key_here` with your actual Roboflow private API key
+   ```bash
+   # Copy the example file
+   cp .env.example .env
+   
+   # Edit .env and add your API key
+   ROBOFLOW_API_KEY=your_actual_api_key_here
    ```
 4. Fork both workflows:
-[Troop Detection](https://app.roboflow.com/workflows/embed/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ3b3JrZmxvd0lkIjoiTEx3TjlnOEduenBjWmVYSktKYzEiLCJ3b3Jrc3BhY2VJZCI6Ik5vVUlkM3gyYWRSU0tqaURrM0ZMTzlBSmE1bzEiLCJ1c2VySWQiOiJOb1VJZDN4MmFkUlNLamlEazNGTE85QUphNW8xIiwiaWF0IjoxNzUzODgxNTcyfQ.-ZO7pqc3mBX6W49-uThUSBLdUaCRzM9I8exfEu6-lo8)
-[Card Detection](https://app.roboflow.com/workflows/embed/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ3b3JrZmxvd0lkIjoiMEFmeVpSQ3FSS1dhV1J5QTFGNkciLCJ3b3Jrc3BhY2VJZCI6InJtZHNiY2xlU292aEEwNm15UDFWIiwidXNlcklkIjoiTm9VSWQzeDJhZFJTS2ppRGszRkxPOUFKYTVvMSIsImlhdCI6MTc1Mzg4MjE4Mn0.ceYp4JZoNSIrDkrX2vuc9or3qVakNexseYEgacIrfLA)
+[Troop Detection](https://app.roboflow.com/workflows/embed/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ3b3JrZmxvd0lkIjoiTEx3TjlnOEduenBjWmVYSktKYzEiLCJ3b3Jrc3BhY2VJZCI6Ik5vVUlkM3gyYWRSU0tqaURrM0ZMTzlBSmE1bzEiLCJ1c2VySWQiOiJOb1VJZDN4MmFkUlNTA2ppRGszRkxPOUFKYTVvMSIsImlhdCI6MTc1Mzg4MmE1NzJ9.-ZO7pqc3mBX6W49-uThUSBLdUaCRzM9I8exfEu6-lo8)
+[Card Detection](https://app.roboflow.com/workflows/embed/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ3b3JrZmxvd0lkIjoiMEFmeVpSQ3FSS1dhV1J5QTFGNkciLCJ3b3Jrc3BhY2VJZCI6InJtZHNiY2xlU292aEEwNm15UDFWIiwidXNlcklkIjoiTm9VSWQzeDJhZFJTA2ppRGszRkxPOUFKYTVvMSIsImlhdCI6MTc1Mzg4MjE4Mn0.ceYp4JZoNSIrDkrX2vuc9or3qVakNexseYEgacIrfLA)
 
 ![Workspace-Fork-Tutorial](https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExM2g4NTZ2MDlkM3JpdGl5emgxNHc3ejJudTRiMDFnbXFkNmxnNzgyeSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/94yt100mNmhRIPRu3d/giphy.gif)
 
-5. Get the workspace-name as shown in the video, and paste it into the quotations all lines with the format of
-   ```js
-   workspace_name="workspace-blahblahblah"
+5. Get the workspace names from your forked workflows and update your `.env` file:
+   - For the Troop Detection workspace, update `WORKSPACE_TROOP_DETECTION=your-troop-workspace-name`
+   - For the Card Detection workspace, update `WORKSPACE_CARD_DETECTION=your-card-workspace-name`
+   
+   Your `.env` file should look like:
+   ```bash
+   ROBOFLOW_API_KEY=your_actual_api_key_here
+   WORKSPACE_TROOP_DETECTION=workspace-your-troop-name
+   WORKSPACE_CARD_DETECTION=workspace-your-card-name
    ```
 6. Open Docker, and open the terminal on the bottom right, and install inference-cli (don't worry the terminal isn't stuck, it takes a long time)
    ```js
