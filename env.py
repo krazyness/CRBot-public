@@ -36,13 +36,13 @@ class ClashRoyaleEnv:
     def setup_roboflow(self):
         return InferenceHTTPClient(
             api_url="http://localhost:9001",
-            api_key="key"
+            api_key="api_key"
         )
 
     def setup_card_roboflow(self):
         return InferenceHTTPClient(
             api_url="http://localhost:9001",
-            api_key="key"
+            api_key="api_key"
         )
 
     def reset(self):
@@ -139,7 +139,7 @@ class ClashRoyaleEnv:
         self.actions.capture_area(self.screenshot_path)
         elixir = self.actions.count_elixir()
         results = self.rf_model.run_workflow(
-            workspace_name="name",
+            workspace_name="workspace_name",
             workflow_id="detect-count-and-visualize",
             images={"image": self.screenshot_path}
         )
@@ -242,7 +242,7 @@ class ClashRoyaleEnv:
             cards = []
             for card_path in card_paths:
                 results = self.card_model.run_workflow(
-                    workspace_name="name",
+                    workspace_name="workspace_name",
                     workflow_id="custom-workflow",
                     images={"image": card_path}
                 )
@@ -284,7 +284,7 @@ class ClashRoyaleEnv:
     def _count_enemy_princess_towers(self):
         self.actions.capture_area(self.screenshot_path)
         results = self.rf_model.run_workflow(
-            workspace_name="name",
+            workspace_name="workspace_name",
             workflow_id="detect-count-and-visualize",
             images={"image": self.screenshot_path}
         )
