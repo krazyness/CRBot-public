@@ -81,11 +81,6 @@ class ClashRoyaleEnv:
             self._endgame_thread.join()
 
     def step(self, action_index):
-        # Check for match over
-        if not self.match_over_detected and hasattr(self.actions, "detect_match_over") and self.actions.detect_match_over():
-            print("Match over detected (matchover.png), forcing no-op until next game.")
-            self.match_over_detected = True
-
         # If match over, only allow no-op action (last action in list)
         if self.match_over_detected:
             action_index = len(self.available_actions) - 1  # No-op action
@@ -123,10 +118,10 @@ class ClashRoyaleEnv:
         if card_index != -1 and card_index < len(self.current_cards):
             card_name = self.current_cards[card_index]
             print(f"Attempting to play {card_name}")
-            x = int(x_frac * self.actions.WIDTH) + self.actions.TOP_LEFT_X
-            y = int(y_frac * self.actions.HEIGHT) + self.actions.TOP_LEFT_Y
+            x = int(x_frac * self.actions.WIDTH)
+            y = int(y_frac * self.actions.HEIGHT)
             self.actions.card_play(x, y, card_index)
-            time.sleep(1)  # You can reduce this if needed
+            # time.sleep(1)  # You can reduce this if needed
 
             # --- Spell penalty logic ---
             if card_name in SPELL_CARDS:
@@ -171,7 +166,7 @@ class ClashRoyaleEnv:
             images={"image": self.screenshot_path}
         )
 
-        print("RAW results:", results)
+        # print("RAW results:", results)
 
         # Handle new structure: dict with "predictions" key
         predictions = []
@@ -181,7 +176,7 @@ class ClashRoyaleEnv:
             first = results[0]
             if isinstance(first, dict) and "predictions" in first:
                 predictions = first["predictions"]
-        print("Predictions:", predictions)
+
         if not predictions:
             print("WARNING: No predictions found in results")
             return None
@@ -190,7 +185,8 @@ class ClashRoyaleEnv:
         if isinstance(predictions, dict) and "predictions" in predictions:
             predictions = predictions["predictions"]
 
-        print("RAW predictions:", predictions)
+        for p in predictions:
+            print(f"{p['class']} at ({p['x']}, {p['y']}) with confidence {p['confidence']:.2f}")
         print("Detected classes:", [repr(p.get("class", "")) for p in predictions if isinstance(p, dict)])
 
         TOWER_CLASSES = {
@@ -321,11 +317,20 @@ class ClashRoyaleEnv:
         return actions
 
     def _endgame_watcher(self):
+        """Thread that watches for both match over and game end conditions"""
         while not self._endgame_thread_stop.is_set():
+            # Check for match over first (during game)
+            if not self.match_over_detected and hasattr(self.actions, "detect_match_over"):
+                if self.actions.detect_match_over():
+                    print("Match over detected (matchover.png), forcing no-op until next game.")
+                    self.match_over_detected = True
+            
+            # Check for game end (victory/defeat screen)
             result = self.actions.detect_game_end()
             if result:
                 self.game_over_flag = result
                 break
+            
             # Sleep a bit to avoid hammering the CPU
             time.sleep(0.5)
 

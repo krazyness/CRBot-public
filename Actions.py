@@ -79,7 +79,7 @@ class Actions:
             return False
         
         try:
-            self.device.shell(f"input tap {x} {y}")
+            self.device.shell(f"input touchscreen swipe {x} {y} {x} {y} 500")
             return True
         except Exception as e:
             print(f"Failed to click at ({x}, {y}): {e}")
@@ -236,6 +236,8 @@ class Actions:
             time.sleep(0.2)
             
             print(f"Placing card at battlefield position ({x}, {y})")
+            if y > 1440:
+                y = 1440
             self._click(x, y)
         else:
             print(f"Invalid card index: {card_index} (must be 0-3)")
@@ -271,7 +273,7 @@ class Actions:
             confidences = [0.8, 0.7, 0.6]
 
             # Define winner detection region in device coordinates
-            winner_region = (400, 100, 480, 400)  # Adjust based on your device resolution
+            winner_region = (0, 0, 1080, 1920)  # Adjust based on your device resolution
 
             for confidence in confidences:
                 # print(f"\nTrying detection with confidence: {confidence}")
@@ -283,6 +285,7 @@ class Actions:
                     
                     # Determine if victory or defeat based on position
                     result_type = "victory" if y > 300 else "defeat"  # Adjust threshold based on device
+                    print(f"Game result: {result_type}")
                     time.sleep(3)
                     
                     # Click the "Play Again" button at device coordinates
@@ -298,7 +301,6 @@ class Actions:
     def detect_match_over(self):
         """Detect match over using ADB and template matching"""
         matchover_img = os.path.join(self.images_folder, "matchover.png")
-        print(matchover_img)
         confidences = [0.8, 0.6, 0.4]
         
         # Define the region where the matchover image appears in device coordinates

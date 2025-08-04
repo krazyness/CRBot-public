@@ -8,7 +8,8 @@ the ADB implementation is working correctly with BlueStacks.
 
 import os
 import time
-from src.Actions import Actions
+from Actions import Actions
+
 
 class ADBActionsTester:
     def __init__(self):
@@ -33,6 +34,7 @@ class ADBActionsTester:
             ("Card Play", self.test_card_play),
             ("Template Matching", self.test_template_matching),
             ("Swipe Functionality", self.test_swipe),
+            ("Detect Game End", self.actions.detect_game_end),
         ]
         
         for test_name, test_func in tests:
@@ -311,7 +313,8 @@ class ADBActionsTester:
             print("8. Card Play Test")
             print("9. Template Matching")
             print("10. Swipe Test")
-            print("11. Run All Tests")
+            print("11. Detect Game End")
+            print("12. Run All Tests")
             print("0. Exit")
             
             choice = input("\nEnter test number: ").strip()
@@ -339,6 +342,8 @@ class ADBActionsTester:
             elif choice == "10":
                 self.test_swipe()
             elif choice == "11":
+                self.actions.detect_game_end()
+            elif choice == "12":
                 self.run_all_tests()
             else:
                 print("Invalid choice. Please try again.")
