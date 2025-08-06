@@ -8,7 +8,7 @@ from datetime import datetime
 import time
 import platform
 
-from utils import timing_decorator
+from utils import take_screenshot, timing_decorator
 
 class Actions:
     def __init__(self):
@@ -29,12 +29,12 @@ class Actions:
         # These need to be adjusted based on your BlueStacks resolution and Clash Royale layout
         self.TOP_LEFT_X = 0
         self.TOP_LEFT_Y = 0
-        self.BOTTOM_RIGHT_X = 1080
-        self.BOTTOM_RIGHT_Y = 1920
+        self.BOTTOM_RIGHT_X = self.device_width
+        self.BOTTOM_RIGHT_Y = self.device_height
         self.FIELD_AREA = (self.TOP_LEFT_X, self.TOP_LEFT_Y, self.BOTTOM_RIGHT_X, self.BOTTOM_RIGHT_Y)
-        
-        self.WIDTH = self.BOTTOM_RIGHT_X - self.TOP_LEFT_X
-        self.HEIGHT = self.BOTTOM_RIGHT_Y - self.TOP_LEFT_Y
+    
+        self.WIDTH = self.device_height
+        self.HEIGHT = self.device_height
         
         # Card bar coordinates in device space
         self.CARD_BAR_X = 237
@@ -53,7 +53,7 @@ class Actions:
             
             # Usually BlueStacks appears as the first device, but you might need to select the right one
             self.device = devices[0]
-            print("Successfully connected to ADB device")
+            print("Successfully connected to ADB device: ", self.device.serial)
             return True
         except Exception as e:
             print(f"Failed to connect to ADB device: {e}")
@@ -66,11 +66,12 @@ class Actions:
         if not self.device:
             print("No device connected")
             return None
-        
         try:
-            screenshot_data = self.device.screencap()
-            screenshot = Image.open(io.BytesIO(screenshot_data))
-            return screenshot
+            screen = take_screenshot(self.device.serial)
+            
+            # screen.save(os.path.join(self.script_dir, 'screenshots', 'current.png'))
+            
+            return screen
         except Exception as e:
             print(f"Failed to take screenshot: {e}")
             return None
@@ -126,6 +127,7 @@ class Actions:
         else:
             print("Failed to capture card area screenshot")
 
+    @timing_decorator
     def capture_individual_cards(self):
         """Capture and split card bar into individual card images using ADB"""
         screenshot = self._take_screenshot()
@@ -269,9 +271,7 @@ class Actions:
                     return
 
             # If button not found, click to clear screens
-            print("Button not found, clicking to clear screens...")
-            self._click(640, 200)  # Center-ish click in device coordinates
-            time.sleep(1)
+            self.click_ok_button()  # Click OK button if any popups appear
 
     @timing_decorator
     def detect_game_end(self):
@@ -281,7 +281,7 @@ class Actions:
             confidences = [0.8, 0.7, 0.6]
 
             # Define winner detection region in device coordinates
-            winner_region = (0, 0, 1080, 1920)  # Adjust based on your device resolution
+            winner_region = (0, 0, self.WIDTH, self.HEIGHT)  # Adjust based on your device resolution
 
             for confidence in confidences:
                 # print(f"\nTrying detection with confidence: {confidence}")
@@ -309,7 +309,7 @@ class Actions:
         confidences = [0.8]
 
         # Define the region for the OK button in device coordinates
-        ok_button_region = (0, 0, 1080, 1920)  # Adjust based on your device resolution
+        ok_button_region = (0, self.HEIGHT / 2, self.WIDTH, self.HEIGHT)
         for confidence in confidences:
             print(f"Looking for OK button (confidence: {confidence})")
             result = self._find_template(ok_button_image, confidence, ok_button_region)
