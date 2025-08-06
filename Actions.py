@@ -306,7 +306,7 @@ class Actions:
     def click_ok_button(self):
         """Click the OK button to close popups"""
         ok_button_image = os.path.join(self.images_folder, "okbutton.png")
-        confidences = [0.8]
+        confidences = [0.8, 0.6, 0.4]
 
         # Define the region for the OK button in device coordinates
         ok_button_region = (0, self.HEIGHT / 2, self.WIDTH, self.HEIGHT)
