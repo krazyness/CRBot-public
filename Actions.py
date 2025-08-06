@@ -8,6 +8,8 @@ from datetime import datetime
 import time
 import platform
 
+from utils import timing_decorator
+
 class Actions:
     def __init__(self):
         self.os_type = platform.system()
@@ -51,13 +53,14 @@ class Actions:
             
             # Usually BlueStacks appears as the first device, but you might need to select the right one
             self.device = devices[0]
-            print(f"Connected to device: {self.device}")
+            print("Successfully connected to ADB device")
             return True
         except Exception as e:
             print(f"Failed to connect to ADB device: {e}")
             print("Run setup_adb.py first to configure ADB connection.")
             return False
 
+    @timing_decorator
     def _take_screenshot(self):
         """Take a screenshot using ADB"""
         if not self.device:
@@ -79,7 +82,7 @@ class Actions:
             return False
         
         try:
-            self.device.shell(f"input touchscreen swipe {x} {y} {x} {y} 500")
+            self.device.shell(f"input touchscreen swipe {x} {y} {x} {y} 300")
             return True
         except Exception as e:
             print(f"Failed to click at ({x}, {y}): {e}")
@@ -152,6 +155,7 @@ class Actions:
         
         return cards
 
+    @timing_decorator
     def count_elixir(self):
         """Count elixir using ADB screenshot analysis"""
         screenshot = self._take_screenshot()
@@ -163,10 +167,10 @@ class Actions:
         screenshot_np = np.array(screenshot)
         
         # Define elixir bar region in device coordinates (you may need to adjust these)
-        elixir_y = 650  # Approximate Y coordinate of elixir bar
-        elixir_start_x = 400  # Start X coordinate
-        elixir_end_x = 880    # End X coordinate  
-        elixir_spacing = 48   # Spacing between elixir icons
+        elixir_y = 1860  # Approximate Y coordinate of elixir bar
+        elixir_start_x = 355  # Start X coordinate
+        elixir_end_x = 1050    # End X coordinate  
+        elixir_spacing = 65   # Spacing between elixir icons
         
         target = (225, 128, 229)  # Target purple color for elixir
         tolerance = 80
@@ -235,9 +239,12 @@ class Actions:
             self._click(card_center_x, card_center_y)
             time.sleep(0.2)
             
-            print(f"Placing card at battlefield position ({x}, {y})")
             if y > 1440:
                 y = 1440
+            if x > 1070:
+                x = 1070
+                
+            print(f"Placing card at battlefield position ({x}, {y})")
             self._click(x, y)
         else:
             print(f"Invalid card index: {card_index} (must be 0-3)")
@@ -266,6 +273,7 @@ class Actions:
             self._click(640, 200)  # Center-ish click in device coordinates
             time.sleep(1)
 
+    @timing_decorator
     def detect_game_end(self):
         """Detect game end using ADB and template matching"""
         try:
@@ -286,23 +294,33 @@ class Actions:
                     # Determine if victory or defeat based on position
                     result_type = "victory" if y > 300 else "defeat"  # Adjust threshold based on device
                     print(f"Game result: {result_type}")
-                    time.sleep(3)
+                    time.sleep(5)
                     
-                    # # Click the "Play Again" button at device coordinates
-                    # play_again_x, play_again_y = 640, 650  # Adjust based on your device resolution
-                    # print(f"Clicking Play Again at ({play_again_x}, {play_again_y})")
-                    # self._click(play_again_x, play_again_y)
-
-                    # Click the "OK" button to close the result screen
-                    ok_x, ok_y = 540, 1700
-                    print(f"Clicking OK")
-                    self._click(ok_x, ok_y)
+                    self.click_ok_button()
 
                     return result_type
         except Exception as e:
             print(f"Error in game end detection: {str(e)}")
         return None
 
+    def click_ok_button(self):
+        """Click the OK button to close popups"""
+        ok_button_image = os.path.join(self.images_folder, "okbutton.png")
+        confidences = [0.8]
+
+        # Define the region for the OK button in device coordinates
+        ok_button_region = (0, 0, 1080, 1920)  # Adjust based on your device resolution
+        for confidence in confidences:
+            print(f"Looking for OK button (confidence: {confidence})")
+            result = self._find_template(ok_button_image, confidence, ok_button_region)
+            if result:
+                x, y, match_confidence = result
+                print(f"Found OK button at ({x}, {y}) with confidence {match_confidence}")
+                self._click(x, y)
+                time.sleep(2)
+                return
+    
+    @timing_decorator
     def detect_match_over(self):
         """Detect match over using ADB and template matching"""
         matchover_img = os.path.join(self.images_folder, "matchover.png")

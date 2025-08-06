@@ -5,6 +5,7 @@ import threading
 from dotenv import load_dotenv
 from Actions import Actions
 from inference_sdk import InferenceHTTPClient
+from utils import timing_decorator
 
 # Load environment variables from .env file
 load_dotenv()
@@ -65,13 +66,13 @@ class ClashRoyaleEnv:
         self.actions.click_battle_start()
         time.sleep(3)
         self.game_over_flag = None
+        self.match_over_detected = False
         self._endgame_thread_stop.clear()
         self._endgame_thread = threading.Thread(target=self._endgame_watcher, daemon=True)
         self._endgame_thread.start()
         self.prev_elixir = None
         self.prev_enemy_presence = None
         self.prev_enemy_princess_towers = self._count_enemy_princess_towers()
-        self.match_over_detected = False
         return self._get_state()
 
     def close(self):
@@ -79,14 +80,18 @@ class ClashRoyaleEnv:
         if self._endgame_thread:
             self._endgame_thread.join()
 
+    @timing_decorator
     def step(self, action_index):
         # If match over, only allow no-op action (last action in list)
         if self.match_over_detected:
             action_index = len(self.available_actions) - 1  # No-op action
 
+        # _get_state() should not be called extensively, it requires a lot of processing on the emulator side, which leads to latencies.
+        next_state = self._get_state()
+        
         if self.game_over_flag:
             done = True
-            reward = self._compute_reward(self._get_state())
+            reward = self._compute_reward(next_state)
             result = self.game_over_flag
             if result == "victory":
                 reward += 100
@@ -94,8 +99,7 @@ class ClashRoyaleEnv:
             elif result == "defeat":
                 reward -= 100
                 print("Defeat detected - ending episode")
-            self.match_over_detected = False  # Reset for next episode
-            return self._get_state(), reward, done
+            return next_state, reward, done
 
         self.current_cards = self.detect_cards_in_hand()
         print("\nCurrent cards in hand:", self.current_cards)
@@ -124,20 +128,22 @@ class ClashRoyaleEnv:
 
             # --- Spell penalty logic ---
             if card_name in SPELL_CARDS:
-                state = self._get_state()
+                print(f"Played spell card: {card_name}")
                 enemy_positions = []
                 for i in range(1 + 2 * MAX_ALLIES, 1 + 2 * MAX_ALLIES + 2 * MAX_ENEMIES, 2):
-                    ex = state[i]
-                    ey = state[i + 1]
+                    ex = next_state[i]
+                    ey = next_state[i + 1]
                     if ex != 0.0 or ey != 0.0:
                         ex_px = int(ex * self.actions.WIDTH)
                         ey_px = int(ey * self.actions.HEIGHT)
                         enemy_positions.append((ex_px, ey_px))
                 radius = 100
                 found_enemy = any((abs(ex - x) ** 2 + abs(ey - y) ** 2) ** 0.5 < radius for ex, ey in enemy_positions)
+                print(f"Spell hit enemy: {found_enemy} at positions {enemy_positions}")
                 if not found_enemy:
                     spell_penalty = -5  # Penalize for wasting spell
-
+            next_state = self._get_state()  # Update state after playing card
+            
         # --- Princess tower reward logic ---
         current_enemy_princess_towers = self._count_enemy_princess_towers()
         princess_tower_reward = 0
@@ -147,10 +153,10 @@ class ClashRoyaleEnv:
         self.prev_enemy_princess_towers = current_enemy_princess_towers
 
         done = False
-        reward = self._compute_reward(self._get_state()) + spell_penalty + princess_tower_reward
-        next_state = self._get_state()
+        reward = self._compute_reward(next_state) + spell_penalty + princess_tower_reward
         return next_state, reward, done
 
+    @timing_decorator
     def _get_state(self):
         self.actions.capture_area(self.screenshot_path)
         elixir = self.actions.count_elixir()
@@ -268,6 +274,7 @@ class ClashRoyaleEnv:
 
         return reward
 
+    @timing_decorator
     def detect_cards_in_hand(self):
         try:
             card_paths = self.actions.capture_individual_cards()
