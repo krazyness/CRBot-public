@@ -27,8 +27,9 @@ class ClashRoyaleEnv:
         self.grid_height = 28
 
         self.screenshot_path = os.path.join(os.path.dirname(__file__), 'screenshots', "current.png")
-        self.available_actions = self.get_available_actions()
-        self.action_size = len(self.available_actions)
+        # self.available_actions = self.get_available_actions()
+        # self.action_size = len(self.available_actions)
+        self.action_size = self.num_cards * self.grid_width * self.grid_height + 1
         self.current_cards = []
 
         self.game_over_flag = None
@@ -72,7 +73,8 @@ class ClashRoyaleEnv:
         self._endgame_thread.start()
         self.prev_elixir = None
         self.prev_enemy_presence = None
-        self.prev_enemy_princess_towers = self._count_enemy_princess_towers()
+        # self.prev_enemy_princess_towers = self._count_enemy_princess_towers()
+        self.prev_enemy_princess_towers = 2
         self.match_over_detected = False
         return self._get_state()
 
@@ -89,11 +91,11 @@ class ClashRoyaleEnv:
 
         # If match over, only allow no-op action (last action in list)
         if self.match_over_detected:
-            action_index = len(self.available_actions) - 1  # No-op action
+            action_index = self.action_size - 1  # No-op action
 
         if self.game_over_flag:
             done = True
-            reward = self._compute_reward(self._get_state())
+            # reward = self._compute_reward(self._get_state())
             result = self.game_over_flag
             if result == "victory":
                 reward += 100
@@ -102,7 +104,9 @@ class ClashRoyaleEnv:
                 reward -= 100
                 print("Defeat detected - ending episode")
             self.match_over_detected = False  # Reset for next episode
-            return self._get_state(), reward, done
+            dummy_state = np.zeros(self.state_size, dtype=np.float32)
+            # return self._get_state(), reward, done
+            return dummy_state, reward, done
 
         self.current_cards = self.detect_cards_in_hand()
         print("\nCurrent cards in hand:", self.current_cards)
@@ -116,7 +120,8 @@ class ClashRoyaleEnv:
             next_state = self._get_state()
             return next_state, 0, False
 
-        action = self.available_actions[action_index]
+        # action = self.available_actions[action_index]
+        action = self.decode_action(action_index)
         card_index, x_frac, y_frac = action
         print(f"Action selected: card_index={card_index}, x_frac={x_frac:.2f}, y_frac={y_frac:.2f}")
 
@@ -321,7 +326,32 @@ class ClashRoyaleEnv:
         ]
         actions.append([-1, 0, 0])  # No-op action
         return actions
+    
+    def decode_action(self, action_index):
+        '''
+        Convert a flat action index into (card, x, y).
+        If it's the special no-op action (last index), return ("no_op", None, None).
+        '''
 
+        # No-op case
+        if action_index == self.action_size - 1:
+            return (-1, 0, 0)
+
+        # Safety check
+        if not (0 <= action_index < self.action_size - 1):
+            raise ValueError(f"Invalid action_index {action_index}")
+
+        grid_area = self.grid_width * self.grid_height
+
+        # divmod returns (quotient, remainder)
+        # Here: quotient = which card index, remainder = position within that card's grid
+        card, rem = divmod(action_index, grid_area)
+
+        # Here: quotient = x coordinate, remainder = y coordinate inside the grid
+        x, y = divmod(rem, self.grid_height)
+
+        return (card, x/(self.grid_width-1), y/(self.grid_height-1))
+    
     def _endgame_watcher(self):
         while not self._endgame_thread_stop.is_set():
             result = self.actions.detect_game_end()
