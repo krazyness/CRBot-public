@@ -101,7 +101,7 @@ class ClashRoyaleEnv:
                 reward = 100
                 print("Victory detected - ending episode")
             elif result == "defeat":
-                reward = 100
+                reward = -100
                 print("Defeat detected - ending episode")
             self.match_over_detected = False  # Reset for next episode
             dummy_state = np.zeros(self.state_size, dtype=np.float32)
