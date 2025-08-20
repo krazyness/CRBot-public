@@ -1,11 +1,11 @@
 import numpy as np
 import time
 import os
-import pyautogui
 import threading
 from dotenv import load_dotenv
 from Actions import Actions
 from inference_sdk import InferenceHTTPClient
+from utils import timing_decorator
 
 # Load environment variables from .env file
 load_dotenv()
@@ -63,17 +63,16 @@ class ClashRoyaleEnv:
         )
 
     def reset(self):
-        # self.actions.click_battle_start()
-        # Instead, just wait for the new game to load after clicking "Play Again"
+        self.actions.click_battle_start()
         time.sleep(3)
         self.game_over_flag = None
+        self.match_over_detected = False
         self._endgame_thread_stop.clear()
         self._endgame_thread = threading.Thread(target=self._endgame_watcher, daemon=True)
         self._endgame_thread.start()
         self.prev_elixir = None
         self.prev_enemy_presence = None
         self.prev_enemy_princess_towers = self._count_enemy_princess_towers()
-        self.match_over_detected = False
         return self._get_state()
 
     def close(self):
@@ -81,19 +80,18 @@ class ClashRoyaleEnv:
         if self._endgame_thread:
             self._endgame_thread.join()
 
+    @timing_decorator
     def step(self, action_index):
-        # Check for match over
-        if not self.match_over_detected and hasattr(self.actions, "detect_match_over") and self.actions.detect_match_over():
-            print("Match over detected (matchover.png), forcing no-op until next game.")
-            self.match_over_detected = True
-
         # If match over, only allow no-op action (last action in list)
         if self.match_over_detected:
             action_index = len(self.available_actions) - 1  # No-op action
 
+        # _get_state() should not be called extensively, it requires a lot of processing on the emulator side, which leads to latencies.
+        next_state = self._get_state()
+        
         if self.game_over_flag:
             done = True
-            reward = self._compute_reward(self._get_state())
+            reward = self._compute_reward(next_state)
             result = self.game_over_flag
             if result == "victory":
                 reward += 100
@@ -101,17 +99,15 @@ class ClashRoyaleEnv:
             elif result == "defeat":
                 reward -= 100
                 print("Defeat detected - ending episode")
-            self.match_over_detected = False  # Reset for next episode
-            return self._get_state(), reward, done
+            return next_state, reward, done
 
         self.current_cards = self.detect_cards_in_hand()
         print("\nCurrent cards in hand:", self.current_cards)
 
-        # If all cards are "Unknown", click at (1611, 831) and return no-op
+        # If all cards are "Unknown", click at center and return no-op
         if all(card == "Unknown" for card in self.current_cards):
-            print("All cards are Unknown, clicking at (1611, 831) and skipping move.")
-            pyautogui.moveTo(1611, 831, duration=0.2)
-            pyautogui.click()
+            print("All cards are Unknown, clicking at center and skipping move.")
+            self.actions._click(640, 400)  # Click at center of screen in device coordinates
             # Return current state, zero reward, not done
             next_state = self._get_state()
             return next_state, 0, False
@@ -125,27 +121,29 @@ class ClashRoyaleEnv:
         if card_index != -1 and card_index < len(self.current_cards):
             card_name = self.current_cards[card_index]
             print(f"Attempting to play {card_name}")
-            x = int(x_frac * self.actions.WIDTH) + self.actions.TOP_LEFT_X
-            y = int(y_frac * self.actions.HEIGHT) + self.actions.TOP_LEFT_Y
+            x = int(x_frac * self.actions.WIDTH)
+            y = int(y_frac * self.actions.HEIGHT)
             self.actions.card_play(x, y, card_index)
-            time.sleep(1)  # You can reduce this if needed
+            # time.sleep(1)  # You can reduce this if needed
 
             # --- Spell penalty logic ---
             if card_name in SPELL_CARDS:
-                state = self._get_state()
+                print(f"Played spell card: {card_name}")
                 enemy_positions = []
                 for i in range(1 + 2 * MAX_ALLIES, 1 + 2 * MAX_ALLIES + 2 * MAX_ENEMIES, 2):
-                    ex = state[i]
-                    ey = state[i + 1]
+                    ex = next_state[i]
+                    ey = next_state[i + 1]
                     if ex != 0.0 or ey != 0.0:
                         ex_px = int(ex * self.actions.WIDTH)
                         ey_px = int(ey * self.actions.HEIGHT)
                         enemy_positions.append((ex_px, ey_px))
                 radius = 100
                 found_enemy = any((abs(ex - x) ** 2 + abs(ey - y) ** 2) ** 0.5 < radius for ex, ey in enemy_positions)
+                print(f"Spell hit enemy: {found_enemy} at positions {enemy_positions}")
                 if not found_enemy:
                     spell_penalty = -5  # Penalize for wasting spell
-
+            next_state = self._get_state()  # Update state after playing card
+            
         # --- Princess tower reward logic ---
         current_enemy_princess_towers = self._count_enemy_princess_towers()
         princess_tower_reward = 0
@@ -155,10 +153,10 @@ class ClashRoyaleEnv:
         self.prev_enemy_princess_towers = current_enemy_princess_towers
 
         done = False
-        reward = self._compute_reward(self._get_state()) + spell_penalty + princess_tower_reward
-        next_state = self._get_state()
+        reward = self._compute_reward(next_state) + spell_penalty + princess_tower_reward
         return next_state, reward, done
 
+    @timing_decorator
     def _get_state(self):
         self.actions.capture_area(self.screenshot_path)
         elixir = self.actions.count_elixir()
@@ -173,7 +171,7 @@ class ClashRoyaleEnv:
             images={"image": self.screenshot_path}
         )
 
-        print("RAW results:", results)
+        # print("RAW results:", results)
 
         # Handle new structure: dict with "predictions" key
         predictions = []
@@ -183,7 +181,7 @@ class ClashRoyaleEnv:
             first = results[0]
             if isinstance(first, dict) and "predictions" in first:
                 predictions = first["predictions"]
-        print("Predictions:", predictions)
+
         if not predictions:
             print("WARNING: No predictions found in results")
             return None
@@ -192,7 +190,8 @@ class ClashRoyaleEnv:
         if isinstance(predictions, dict) and "predictions" in predictions:
             predictions = predictions["predictions"]
 
-        print("RAW predictions:", predictions)
+        for p in predictions:
+            print(f"{p['class']} at ({p['x']}, {p['y']}) with confidence {p['confidence']:.2f}")
         print("Detected classes:", [repr(p.get("class", "")) for p in predictions if isinstance(p, dict)])
 
         TOWER_CLASSES = {
@@ -275,6 +274,7 @@ class ClashRoyaleEnv:
 
         return reward
 
+    @timing_decorator
     def detect_cards_in_hand(self):
         try:
             card_paths = self.actions.capture_individual_cards()
@@ -323,11 +323,20 @@ class ClashRoyaleEnv:
         return actions
 
     def _endgame_watcher(self):
+        """Thread that watches for both match over and game end conditions"""
         while not self._endgame_thread_stop.is_set():
+            # Check for match over first (during game)
+            if not self.match_over_detected and hasattr(self.actions, "detect_match_over"):
+                if self.actions.detect_match_over():
+                    print("Match over detected (matchover.png), forcing no-op until next game.")
+                    self.match_over_detected = True
+            
+            # Check for game end (victory/defeat screen)
             result = self.actions.detect_game_end()
             if result:
                 self.game_over_flag = result
                 break
+            
             # Sleep a bit to avoid hammering the CPU
             time.sleep(0.5)
 

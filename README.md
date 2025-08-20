@@ -70,24 +70,12 @@ A Python-based Clash Royale AI bot that learns and improves through gameplay. Th
 * VSCode (unless you're more familiar with other code editors)
 * [Docker](https://www.docker.com/)
 * [Roboflow Account](https://www.roboflow.com/)
-* [BlueStacks](https://www.bluestacks.com/download.html)
+* [BlueStacks](https://www.bluestacks.com/download.html) with ADB enabled
 * [Python 3.12](https://www.python.org/downloads/windows/)
-* inference_sdk
-  ```
-  pip install inference-sdk
-  ```
-* PyTorch
-  ```
-  pip install torch
-  ```
-* PyAutoGUI
-  ```
-  pip install PyAutoGUI
-  ```
-* NumPy
-  ```
-  pip install numpy
-  ```
+* Install the requirements:
+```
+pip install -r requirements.txt
+``` 
   
 ### Installation
 
@@ -123,7 +111,21 @@ A Python-based Clash Royale AI bot that learns and improves through gameplay. Th
    WORKSPACE_TROOP_DETECTION=workspace-your-troop-name
    WORKSPACE_CARD_DETECTION=workspace-your-card-name
    ```
-6. Open Docker, and open the terminal on the bottom right, and install inference-cli (don't worry the terminal isn't stuck, it takes a long time)
+
+6. **Set up ADB connection with BlueStacks:**
+   ```bash
+   python setup_adb.py
+   ```
+   This script will:
+   - Find your ADB installation automatically
+   - Start the ADB server
+   - Connect to BlueStacks
+   - Test the connection
+   
+   **Important**: Make sure BlueStacks is running and ADB is enabled in BlueStacks settings:
+   `Settings > Advanced > Android Debug Bridge > Enable`
+
+7. Open Docker, and open the terminal on the bottom right, and install inference-cli (don't worry the terminal isn't stuck, it takes a long time)
    ```js
    pip install inference-cli
    ```
@@ -135,13 +137,9 @@ A Python-based Clash Royale AI bot that learns and improves through gameplay. Th
 9. Open BlueStacks, and open the "multi-instance manager" (should be the third icon above the Discord icon, or its in the 3 dots), and create a fresh Pie 64-bit instance.
 10. Start the Pie 64-bit instance, open Google Play Store, and install Clash Royale.
 11. Optional: remove the ads on the left by opening settings (gear), > Preferences > Allow BlueStacks to show Ads during gameplay (disabled)
-12. Open Clash Royale, resize and position the window like so (stretched and to the right-most of the screen)
+12. Log in (or make a new) account on Clash Royale, run train.py.
 
-![BlueStacks-window-tutorial](https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExM3k2enMwY3E4cHJ0MDhnbmg1NnhsaDI3bGhmazJ4aXlxczFkamFxeSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/y8yXKqwN40cdcr4yR5/giphy.gif)
-
-13. Log in (or make a new) account on Clash Royale, click on battle, then run train.py, but immediately after, make sure the BlueStacks emulator is the front-most window.
-
-**NOTE:** The bot is broken right now, with it not handling "play again" correctly, as well as some minor bugs in gameplay. You can ask me any questions at the contacts page, or make contributions at the contributing page!
+**NOTE:** The bot has some minor bugs in gameplay. You can ask me any questions at the contacts page, or make contributions at the contributing page!
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 

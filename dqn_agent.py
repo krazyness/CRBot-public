@@ -5,6 +5,8 @@ import torch.optim as optim
 import random
 from collections import deque
 
+from utils import timing_decorator
+
 class DQN(nn.Module):
     def __init__(self, input_dim, output_dim):
         super(DQN, self).__init__()
@@ -45,6 +47,7 @@ class DQNAgent:
             q_values = self.model(state)
         return q_values.argmax().item()
 
+    @timing_decorator
     def replay(self, batch_size):
         if len(self.memory) < batch_size:
             return
